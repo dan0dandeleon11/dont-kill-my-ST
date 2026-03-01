@@ -57,16 +57,21 @@ function waitForInteraction() {
     autoplayListenerAttached = true;
 
     const handler = () => {
-        document.removeEventListener('click', handler);
-        document.removeEventListener('touchstart', handler);
+        document.removeEventListener('click', handler, true);
+        document.removeEventListener('touchstart', handler, true);
+        document.removeEventListener('touchend', handler, true);
+        document.removeEventListener('keydown', handler, true);
         autoplayListenerAttached = false;
         if (getEnabled() && !isActive) {
             startKeepAlive();
         }
     };
 
-    document.addEventListener('click', handler, { once: false });
-    document.addEventListener('touchstart', handler, { once: false });
+    // Use capture phase so ST's stopPropagation can't block us
+    document.addEventListener('click', handler, { capture: true, once: true });
+    document.addEventListener('touchstart', handler, { capture: true, once: true });
+    document.addEventListener('touchend', handler, { capture: true, once: true });
+    document.addEventListener('keydown', handler, { capture: true, once: true });
 }
 
 function updateIndicator() {
