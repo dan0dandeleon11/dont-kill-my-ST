@@ -20,43 +20,6 @@ function setEnabled(val) {
     localStorage.setItem(localStorageKey, val ? 'true' : 'false');
 }
 
-function createFloatingIndicator() {
-    if (document.getElementById('keep-alive-floating')) return;
-
-    const floater = document.createElement('div');
-    floater.id = 'keep-alive-floating';
-    floater.title = 'Keep Alive: Inactive';
-    floater.innerHTML = '&#x1f50a;'; // speaker emoji
-
-    Object.assign(floater.style, {
-        position: 'fixed',
-        bottom: '12px',
-        left: '12px',
-        width: '32px',
-        height: '32px',
-        borderRadius: '50%',
-        backgroundColor: 'rgba(80, 80, 80, 0.6)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '15px',
-        zIndex: '99999',
-        cursor: 'pointer',
-        transition: 'all 0.3s ease',
-        border: '2px solid transparent',
-        userSelect: 'none',
-        WebkitTapHighlightColor: 'transparent',
-    });
-
-    // Tap the floater to toggle too
-    floater.addEventListener('click', (e) => {
-        e.stopPropagation();
-        onToggle();
-    });
-
-    document.body.appendChild(floater);
-}
-
 function startKeepAlive() {
     if (audioElement) return;
 
@@ -68,10 +31,11 @@ function startKeepAlive() {
     if (playPromise !== undefined) {
         playPromise.then(() => {
             isActive = true;
-            updateIndicator(true);
+            updateIndicator();
             console.log('[Keep Alive] Silent audio loop started.');
         }).catch((err) => {
             console.warn('[Keep Alive] Autoplay blocked, waiting for user interaction...', err);
+            updateIndicator();
             waitForInteraction();
         });
     }
@@ -84,7 +48,7 @@ function stopKeepAlive() {
         audioElement = null;
     }
     isActive = false;
-    updateIndicator(false);
+    updateIndicator();
     console.log('[Keep Alive] Stopped.');
 }
 
@@ -105,77 +69,35 @@ function waitForInteraction() {
     document.addEventListener('touchstart', handler, { once: false });
 }
 
-function updateIndicator(active) {
-    // Settings panel dot
+function updateIndicator() {
     const dot = document.getElementById('keep-alive-dot');
-    if (dot) {
-        dot.style.backgroundColor = active ? '#4caf50' : '#888';
-        dot.title = active ? 'Keep Alive: Active' : 'Keep Alive: Inactive';
-    }
+    const label = document.getElementById('keep-alive-label');
+    if (!dot) return;
 
-    // Floating indicator
-    const floater = document.getElementById('keep-alive-floating');
-    if (floater) {
-        if (active) {
-            floater.innerHTML = '&#x1f50a;'; // speaker with sound
-            floater.style.backgroundColor = 'rgba(76, 175, 80, 0.85)';
-            floater.style.border = '2px solid #81c784';
-            floater.style.animation = 'keepAlivePulse 2s ease-in-out infinite';
-            floater.title = 'Keep Alive: Active (tap to stop)';
-        } else if (getEnabled()) {
-            // Enabled but waiting for interaction
-            floater.innerHTML = '&#x23f3;'; // hourglass
-            floater.style.backgroundColor = 'rgba(255, 183, 77, 0.85)';
-            floater.style.border = '2px solid #ffcc80';
-            floater.style.animation = 'none';
-            floater.title = 'Keep Alive: Waiting for tap...';
-        } else {
-            floater.innerHTML = '&#x1f507;'; // muted speaker
-            floater.style.backgroundColor = 'rgba(80, 80, 80, 0.6)';
-            floater.style.border = '2px solid transparent';
-            floater.style.animation = 'none';
-            floater.title = 'Keep Alive: Off (tap to start)';
-        }
+    if (isActive) {
+        dot.style.backgroundColor = '#4caf50';
+        if (label) label.textContent = 'Keep Alive: ON';
+    } else if (getEnabled()) {
+        dot.style.backgroundColor = '#ffb74d';
+        if (label) label.textContent = 'Keep Alive: Waiting for tap...';
+    } else {
+        dot.style.backgroundColor = '#888';
+        if (label) label.textContent = 'Keep Alive: OFF';
     }
-}
-
-function injectStyles() {
-    if (document.getElementById('keep-alive-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'keep-alive-styles';
-    style.textContent = `
-        @keyframes keepAlivePulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.5); }
-            50% { box-shadow: 0 0 0 8px rgba(76, 175, 80, 0); }
-        }
-    `;
-    document.head.appendChild(style);
 }
 
 function onToggle() {
-    const enabled = getEnabled();
-    if (enabled) {
+    if (getEnabled()) {
         setEnabled(false);
         stopKeepAlive();
     } else {
         setEnabled(true);
         startKeepAlive();
     }
-    updateButtonState();
-}
-
-function updateButtonState() {
-    const btn = document.getElementById('keep-alive-toggle');
-    if (btn) {
-        btn.classList.toggle('active', getEnabled());
-    }
-    updateIndicator(isActive);
+    updateIndicator();
 }
 
 jQuery(async () => {
-    // Inject pulse animation CSS
-    injectStyles();
-
     const settingsHtml = `
     <div id="keep-alive-settings" class="extension_settings">
         <div class="inline-drawer">
@@ -184,38 +106,36 @@ jQuery(async () => {
                 <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
             </div>
             <div class="inline-drawer-content">
-                <div style="display:flex;align-items:center;gap:8px;margin:8px 0;">
+                <div style="display:flex;align-items:center;gap:8px;margin:10px 0;">
                     <button id="keep-alive-toggle" class="menu_button" title="Toggle Keep Alive">
-                        <span style="display:flex;align-items:center;gap:6px;">
+                        <span style="display:flex;align-items:center;gap:8px;">
                             <span id="keep-alive-dot" style="
-                                width:10px;height:10px;border-radius:50%;
+                                width:12px;height:12px;border-radius:50%;
                                 background-color:#888;display:inline-block;
                                 transition:background-color 0.3s;
                             "></span>
-                            Keep Alive
+                            <span id="keep-alive-label">Keep Alive: OFF</span>
                         </span>
                     </button>
                 </div>
-                <p class="hint" style="font-size:0.85em;color:#aaa;">
+                <p class="hint" style="font-size:0.85em;color:#aaa;margin-top:4px;">
                     Loops silent audio to prevent mobile browsers from suspending this tab.
-                    State is saved across sessions. You can also tap the floating indicator
-                    in the bottom-left corner to toggle.
+                    <br>
+                    <b style="color:#4caf50;">Green</b> = active &nbsp;
+                    <b style="color:#ffb74d;">Orange</b> = waiting for first tap &nbsp;
+                    <b style="color:#888;">Gray</b> = off
                 </p>
             </div>
         </div>
     </div>`;
 
     $('#extensions_settings2').append(settingsHtml);
-
     $('#keep-alive-toggle').on('click', onToggle);
-
-    // Create the floating indicator on the main screen
-    createFloatingIndicator();
 
     // Auto-start if previously enabled
     if (getEnabled()) {
         startKeepAlive();
     }
 
-    updateButtonState();
+    updateIndicator();
 });
