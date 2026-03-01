@@ -1,0 +1,12 @@
+{
+    "display_name": "Keep Alive (Mobile)",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "",
+    "author": "dan0dandeleon11",
+    "version": "1.0.0",
+    "homePage": "https://github.com/dan0dandeleon11/dont-kill-my-ST",
+    "auto_update": true
+}
