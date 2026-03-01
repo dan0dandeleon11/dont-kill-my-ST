@@ -2,43 +2,48 @@
 // Prevents mobile browsers (Huawei/Honor/etc.) from killing the tab
 // by maintaining a looping silent audio session.
 
-import { extension_settings, getContext } from '../../../extensions.js';
-
-const extensionName = 'keep-alive';
-const extensionFolder = `scripts/extensions/third-party/${extensionName}`;
 const localStorageKey = 'keepAlive_enabled';
+
+// 5-frame silent MP3 embedded as base64 (no external file needed)
+const SILENCE_B64 = '//uQBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//uQBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//uQBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//uQBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//uQBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+const SILENCE_URI = 'data:audio/mpeg;base64,' + SILENCE_B64;
 
 let audioElement = null;
 let isActive = false;
 
-function getEnabled() {
-    return localStorage.getItem(localStorageKey) === 'true';
-}
-
-function setEnabled(val) {
-    localStorage.setItem(localStorageKey, val ? 'true' : 'false');
-}
-
 function startKeepAlive() {
-    if (audioElement) return;
+    if (isActive && audioElement) return;
 
-    audioElement = new Audio(`/${extensionFolder}/silence.mp3`);
-    audioElement.loop = true;
-    audioElement.volume = 0;
+    if (audioElement) {
+        audioElement.pause();
+        audioElement = null;
+    }
 
-    const playPromise = audioElement.play();
-    if (playPromise !== undefined) {
-        playPromise.then(() => {
-            isActive = true;
-            updateIndicator();
-            console.log('[Keep Alive] Silent audio loop started.');
-        }).catch((err) => {
-            // If it still fails, the user will see it stays OFF
-            console.warn('[Keep Alive] Play failed:', err);
-            setEnabled(false);
-            isActive = false;
-            updateIndicator();
-        });
+    try {
+        audioElement = new Audio(SILENCE_URI);
+        audioElement.loop = true;
+        audioElement.volume = 0;
+
+        const p = audioElement.play();
+        if (p !== undefined) {
+            p.then(() => {
+                isActive = true;
+                updateIndicator();
+                console.log('[Keep Alive] Silent audio loop started.');
+            }).catch((err) => {
+                console.error('[Keep Alive] Play failed:', err);
+                audioElement = null;
+                isActive = false;
+                localStorage.setItem(localStorageKey, 'false');
+                updateIndicator();
+            });
+        }
+    } catch (err) {
+        console.error('[Keep Alive] Error:', err);
+        audioElement = null;
+        isActive = false;
+        localStorage.setItem(localStorageKey, 'false');
+        updateIndicator();
     }
 }
 
@@ -69,10 +74,10 @@ function updateIndicator() {
 
 function onToggle() {
     if (isActive) {
-        setEnabled(false);
+        localStorage.setItem(localStorageKey, 'false');
         stopKeepAlive();
     } else {
-        setEnabled(true);
+        localStorage.setItem(localStorageKey, 'true');
         startKeepAlive();
     }
 }
@@ -104,8 +109,6 @@ jQuery(async () => {
                     <br><br>
                     <b style="color:#4caf50;">Green</b> = protected &nbsp;
                     <b style="color:#888;">Gray</b> = off
-                    <br><br>
-                    <i>You need to tap the button each time you open SillyTavern.</i>
                 </p>
             </div>
         </div>
