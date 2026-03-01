@@ -10,7 +10,6 @@ const localStorageKey = 'keepAlive_enabled';
 
 let audioElement = null;
 let isActive = false;
-let autoplayListenerAttached = false;
 
 function getEnabled() {
     return localStorage.getItem(localStorageKey) === 'true';
@@ -34,9 +33,11 @@ function startKeepAlive() {
             updateIndicator();
             console.log('[Keep Alive] Silent audio loop started.');
         }).catch((err) => {
-            console.warn('[Keep Alive] Autoplay blocked, waiting for user interaction...', err);
+            // If it still fails, the user will see it stays OFF
+            console.warn('[Keep Alive] Play failed:', err);
+            setEnabled(false);
+            isActive = false;
             updateIndicator();
-            waitForInteraction();
         });
     }
 }
@@ -52,28 +53,6 @@ function stopKeepAlive() {
     console.log('[Keep Alive] Stopped.');
 }
 
-function waitForInteraction() {
-    if (autoplayListenerAttached) return;
-    autoplayListenerAttached = true;
-
-    const handler = () => {
-        document.removeEventListener('click', handler, true);
-        document.removeEventListener('touchstart', handler, true);
-        document.removeEventListener('touchend', handler, true);
-        document.removeEventListener('keydown', handler, true);
-        autoplayListenerAttached = false;
-        if (getEnabled() && !isActive) {
-            startKeepAlive();
-        }
-    };
-
-    // Use capture phase so ST's stopPropagation can't block us
-    document.addEventListener('click', handler, { capture: true, once: true });
-    document.addEventListener('touchstart', handler, { capture: true, once: true });
-    document.addEventListener('touchend', handler, { capture: true, once: true });
-    document.addEventListener('keydown', handler, { capture: true, once: true });
-}
-
 function updateIndicator() {
     const dot = document.getElementById('keep-alive-dot');
     const label = document.getElementById('keep-alive-label');
@@ -82,9 +61,6 @@ function updateIndicator() {
     if (isActive) {
         dot.style.backgroundColor = '#4caf50';
         if (label) label.textContent = 'Keep Alive: ON';
-    } else if (getEnabled()) {
-        dot.style.backgroundColor = '#ffb74d';
-        if (label) label.textContent = 'Keep Alive: Waiting for tap...';
     } else {
         dot.style.backgroundColor = '#888';
         if (label) label.textContent = 'Keep Alive: OFF';
@@ -92,14 +68,13 @@ function updateIndicator() {
 }
 
 function onToggle() {
-    if (getEnabled()) {
+    if (isActive) {
         setEnabled(false);
         stopKeepAlive();
     } else {
         setEnabled(true);
         startKeepAlive();
     }
-    updateIndicator();
 }
 
 jQuery(async () => {
@@ -124,11 +99,13 @@ jQuery(async () => {
                     </button>
                 </div>
                 <p class="hint" style="font-size:0.85em;color:#aaa;margin-top:4px;">
-                    Loops silent audio to prevent mobile browsers from suspending this tab.
-                    <br>
-                    <b style="color:#4caf50;">Green</b> = active &nbsp;
-                    <b style="color:#ffb74d;">Orange</b> = waiting for first tap &nbsp;
+                    Tap the button to start/stop silent audio. Keeps your browser
+                    from killing this tab in the background.
+                    <br><br>
+                    <b style="color:#4caf50;">Green</b> = protected &nbsp;
                     <b style="color:#888;">Gray</b> = off
+                    <br><br>
+                    <i>You need to tap the button each time you open SillyTavern.</i>
                 </p>
             </div>
         </div>
@@ -136,11 +113,6 @@ jQuery(async () => {
 
     $('#extensions_settings2').append(settingsHtml);
     $('#keep-alive-toggle').on('click', onToggle);
-
-    // Auto-start if previously enabled
-    if (getEnabled()) {
-        startKeepAlive();
-    }
 
     updateIndicator();
 });
